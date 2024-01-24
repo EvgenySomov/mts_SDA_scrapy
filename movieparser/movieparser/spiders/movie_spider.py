@@ -1,4 +1,5 @@
 import scrapy
+import re
 
 class MovieSpider(scrapy.Spider):
     name = 'wiki'
@@ -9,11 +10,22 @@ class MovieSpider(scrapy.Spider):
         for link in response.css('div.mw-category-group a::attr(href)'):
             yield response.follow(link, callback=self.parse_movie)
 
+        new_link = response.css('a:contains("Следующая страница")::attr(href)').get()
+
+        if new_link:
+            new_link = response.urljoin(new_link)
+            yield response.follow(new_link, callback=self.parse)
+
+    def strip_(self, arr: list) -> list:
+        """Удадаляем запятые пробелы, спецсимволы"""
+        words_only = [word for word in arr if re.match(r'\b\w+\b', word)]
+        return words_only
+
     def parse_movie(self, response):
-
-        yield {"Название": response.css('table.infobox tbody tr th.infobox-above::text').get().strip(),
-               "Жанр": response.css('table.infobox tbody tr th:contains("Жан") + td span.wikidata-snak a::text').getall(),
-               "Режиссеры": response.css('table.infobox tbody tr th:contains("Реж") + td span::text').getall(),
-               "Страны": response.css('table.infobox tbody tr th:contains("Стра") + td a ::text').getall()}
-
-
+        """Функция парсинга страницы фильма"""
+        yield {
+            "Название": response.css('table.infobox tbody tr th.infobox-above::text').get().strip(),
+            "Жанр": self.strip_(response.css('table.infobox tbody tr th:contains("Жан") + td ::text').getall()),
+            "Режиссеры": self.strip_(response.css('table.infobox tbody tr th:contains("Реж") + td ::text').getall()),
+            "Страны": self.strip_(response.css('table.infobox tbody tr th:contains("Стра") + td ::text').getall())
+            }
